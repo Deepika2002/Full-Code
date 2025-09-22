@@ -217,6 +217,7 @@ const Dashboard = () => {
             </div>
           </div>
                     {new Date(mr.timestamp).toLocaleString()}
+          </div>
       </section>
 
       {/* Recent MRs */}
