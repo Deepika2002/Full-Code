@@ -1,67 +1,124 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { Search, AlertTriangle, Play, FileText, Target } from 'lucide-react';
+import { apiService } from '../services/api';
 
 const DevsView = () => {
   const [selectedMR, setSelectedMR] = useState('MR-001');
   const [selectedTestFlow, setSelectedTestFlow] = useState('');
+  const [impactData, setImpactData] = useState<Record<string, any>>({});
+  const [codeChanges, setCodeChanges] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const impactData = {
-    'MR-001': {
-      affectedClasses: [
-        { name: 'UserService', severity: 'High', reason: 'Core business logic changes' },
-        { name: 'PaymentController', severity: 'Medium', reason: 'API endpoint modifications' },
-        { name: 'OrderEntity', severity: 'Low', reason: 'Data model updates' }
-      ],
-      severityScore: 7.8,
-      testFlows: [
-        { id: 'TF-001', name: 'User Registration Flow', status: 'pending' },
-        { id: 'TF-002', name: 'Payment Processing Flow', status: 'pending' },
-        { id: 'TF-003', name: 'Order Management Flow', status: 'pending' }
-      ],
-      codeCoverage: 92.1
-    },
-    'MR-002': {
-      affectedClasses: [
-        { name: 'ProductRepository', severity: 'Medium', reason: 'Database query changes' },
-        { name: 'CategoryService', severity: 'Low', reason: 'Minor logic updates' }
-      ],
-      severityScore: 4.2,
-      testFlows: [
-        { id: 'TF-004', name: 'Product Catalog Flow', status: 'pending' },
-        { id: 'TF-005', name: 'Category Management Flow', status: 'pending' }
-      ],
-      codeCoverage: 85.7
-    }
-  };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const codeChanges = {
-    'MR-001': [
-      {
-        file: 'src/main/java/com/ecommerce/service/UserService.java',
-        changes: '+15 -8',
-        type: 'modified',
-        preview: 'Added email validation and password encryption logic'
-      },
-      {
-        file: 'src/main/java/com/ecommerce/controller/PaymentController.java',
-        changes: '+23 -12',
-        type: 'modified',
-        preview: 'Updated payment processing endpoints with new validation'
-      },
-      {
-        file: 'src/main/java/com/ecommerce/entity/OrderEntity.java',
-        changes: '+5 -2',
-        type: 'modified',
-        preview: 'Added new fields for order tracking'
+        // Fetch impact map data
+        const impactMapData = await apiService.getImpactMap();
+        
+        // Transform data for component use
+        const transformedImpactData: Record<string, any> = {};
+        const transformedCodeChanges: Record<string, any> = {};
+        
+        for (const mr of impactMapData) {
+          // Get detailed code changes for each MR
+          try {
+            const codeDetails = await apiService.getCodeChangeDetails(mr.mrId);
+            
+            transformedImpactData[mr.mrId] = {
+              affectedClasses: mr.affectedClasses,
+              severityScore: mr.severityScore,
+              testFlows: codeDetails.testFlows,
+              codeCoverage: mr.codeCoverage
+            };
+            
+            transformedCodeChanges[mr.mrId] = codeDetails.codeChanges;
+          } catch (err) {
+            console.warn(`Failed to fetch details for MR ${mr.mrId}:`, err);
+            // Use fallback data
+            transformedImpactData[mr.mrId] = {
+              affectedClasses: mr.affectedClasses,
+              severityScore: mr.severityScore,
+              testFlows: [
+                { id: 'TF-001', name: 'Core Functionality Flow', status: 'pending' }
+              ],
+              codeCoverage: mr.codeCoverage
+            };
+            
+            transformedCodeChanges[mr.mrId] = [
+              {
+                file: 'Loading...',
+                changes: '+? -?',
+                type: 'modified',
+                preview: 'Code change details loading...'
+              }
+            ];
+          }
+        }
+        
+        setImpactData(transformedImpactData);
+        setCodeChanges(transformedCodeChanges);
+        
+        // Set first MR as selected if available
+        if (impactMapData.length > 0) {
+          setSelectedMR(impactMapData[0].mrId);
+        }
+        
+      } catch (err) {
+        console.error('Error fetching devs view data:', err);
+        setError('Failed to load impact analysis data. Please check if the backend services are running.');
+      } finally {
+        setLoading(false);
       }
-    ]
-  };
+    };
 
-  const handleTestFlowSubmit = () => {
+    fetchData();
+  }, []);
+
+  const handleTestFlowSubmit = async () => {
     if (selectedTestFlow) {
-      alert(`Submitted test flow: ${selectedTestFlow} for execution`);
+      try {
+        await apiService.selectTestFlow(selectedTestFlow, selectedMR);
+        alert(`Submitted test flow: ${selectedTestFlow} for execution`);
+      } catch (err) {
+        console.error('Error submitting test flow:', err);
+        alert('Failed to submit test flow. Please try again.');
+      }
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading impact analysis data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="flex items-center">
+          <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
+          <h3 className="text-red-800 font-medium">Error Loading Impact Analysis</h3>
+        </div>
+        <p className="text-red-700 mt-2">{error}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const currentData = impactData[selectedMR] || impactData['MR-001'];
   const currentChanges = codeChanges[selectedMR] || codeChanges['MR-001'];
@@ -79,9 +136,11 @@ const DevsView = () => {
               onChange={(e) => setSelectedMR(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="MR-001">MR-001 - UserService Updates</option>
-              <option value="MR-002">MR-002 - Product Repository</option>
-              <option value="MR-003">MR-003 - Security Config</option>
+              {Object.keys(impactData).map((mrId) => (
+                <option key={mrId} value={mrId}>
+                  {mrId} - {impactData[mrId]?.affectedClasses?.[0]?.name || 'Unknown'} Updates
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -94,12 +153,12 @@ const DevsView = () => {
             <h3 className="text-lg font-semibold text-gray-900">Impact Map & Severity Analysis</h3>
             <div className="flex items-center space-x-2">
               <AlertTriangle className={`w-5 h-5 ${
-                currentData.severityScore >= 7 ? 'text-red-500' :
-                currentData.severityScore >= 5 ? 'text-yellow-500' :
+                (currentData?.severityScore || 0) >= 7 ? 'text-red-500' :
+                (currentData?.severityScore || 0) >= 5 ? 'text-yellow-500' :
                 'text-green-500'
               }`} />
               <span className="text-lg font-bold text-gray-900">
-                Severity Score: {currentData.severityScore}/10
+                Severity Score: {(currentData?.severityScore || 0).toFixed(1)}/10
               </span>
             </div>
           </div>
@@ -109,7 +168,7 @@ const DevsView = () => {
             <div>
               <h4 className="font-medium text-gray-900 mb-4">Affected Classes</h4>
               <div className="space-y-3">
-                {currentData.affectedClasses.map((cls, index) => (
+                {(currentData?.affectedClasses || []).map((cls: any, index: number) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-gray-900">{cls.name}</span>
@@ -133,18 +192,18 @@ const DevsView = () => {
               <div className="bg-gray-50 rounded-lg p-6">
                 <div className="text-center mb-4">
                   <div className="text-4xl font-bold text-gray-900 mb-2">
-                    {currentData.codeCoverage}%
+                    {(currentData?.codeCoverage || 0).toFixed(1)}%
                   </div>
                   <p className="text-sm text-gray-600">Overall Coverage</p>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
                   <div 
                     className={`h-3 rounded-full ${
-                      currentData.codeCoverage >= 90 ? 'bg-green-500' :
-                      currentData.codeCoverage >= 80 ? 'bg-yellow-500' :
+                      (currentData?.codeCoverage || 0) >= 90 ? 'bg-green-500' :
+                      (currentData?.codeCoverage || 0) >= 80 ? 'bg-yellow-500' :
                       'bg-red-500'
                     }`}
-                    style={{ width: `${currentData.codeCoverage}%` }}
+                    style={{ width: `${currentData?.codeCoverage || 0}%` }}
                   ></div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-center text-sm">
@@ -172,7 +231,7 @@ const DevsView = () => {
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Code Change Details</h3>
           <div className="space-y-4">
-            {currentChanges.map((change, index) => (
+            {(currentChanges || []).map((change: any, index: number) => (
               <div key={index} className="border rounded-lg p-4 hover:bg-gray-50">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-3">
@@ -207,7 +266,7 @@ const DevsView = () => {
             <div>
               <h4 className="font-medium text-gray-900 mb-4">Available Test Flows</h4>
               <div className="space-y-3">
-                {currentData.testFlows.map((flow) => (
+                {(currentData?.testFlows || []).map((flow: any) => (
                   <div key={flow.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center space-x-3">
                       <input
@@ -244,7 +303,7 @@ const DevsView = () => {
                     <div className="flex items-center space-x-2">
                       <Target className="w-5 h-5 text-blue-600" />
                       <span className="font-medium text-gray-900">
-                        Selected: {currentData.testFlows.find(f => f.id === selectedTestFlow)?.name}
+                        Selected: {(currentData?.testFlows || []).find((f: any) => f.id === selectedTestFlow)?.name}
                       </span>
                     </div>
                     <button

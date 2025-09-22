@@ -1,94 +1,80 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { Calendar, CheckCircle, XCircle, Clock, Play, Pause, RotateCcw } from 'lucide-react';
+import { apiService } from '../services/api';
 
 const TestsView = () => {
   const [selectedDate, setSelectedDate] = useState('2025-01-27');
   const [selectedFlow, setSelectedFlow] = useState('');
+  const [testFlowData, setTestFlowData] = useState<any>({});
+  const [testDetails, setTestDetails] = useState<any>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const testFlowData = {
-    '2025-01-27': [
-      {
-        id: 'TF-001',
-        name: 'User Registration Flow',
-        status: 'passed',
-        duration: '2m 34s',
-        lastRun: '14:30',
-        steps: 12,
-        passedSteps: 12,
-        failedSteps: 0
-      },
-      {
-        id: 'TF-002',
-        name: 'Payment Processing Flow',
-        status: 'failed',
-        duration: '1m 45s',
-        lastRun: '14:25',
-        steps: 8,
-        passedSteps: 6,
-        failedSteps: 2
-      },
-      {
-        id: 'TF-003',
-        name: 'Order Management Flow',
-        status: 'running',
-        duration: '3m 12s',
-        lastRun: '14:35',
-        steps: 15,
-        passedSteps: 10,
-        failedSteps: 0
-      },
-      {
-        id: 'TF-004',
-        name: 'Product Catalog Flow',
-        status: 'passed',
-        duration: '1m 58s',
-        lastRun: '13:45',
-        steps: 9,
-        passedSteps: 9,
-        failedSteps: 0
-      },
-      {
-        id: 'TF-005',
-        name: 'Category Management Flow',
-        status: 'pending',
-        duration: '-',
-        lastRun: '-',
-        steps: 6,
-        passedSteps: 0,
-        failedSteps: 0
+  useEffect(() => {
+    const fetchTestFlows = async (date: string) => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const data = await apiService.getTestFlows(date);
+        
+        setTestFlowData({
+          [date]: data.testFlows
+        });
+        
+        // Create mock test details for failed flows
+        const mockDetails: any = {};
+        data.testFlows.forEach((flow: any) => {
+          if (flow.status === 'failed') {
+            mockDetails[flow.id] = {
+              failureReason: 'Test execution failed',
+              errorLog: `Test failed at step ${flow.passedSteps + 1}\nError: Assertion failed\nExpected: success\nActual: failure`,
+              affectedComponents: ['TestComponent', 'ServiceLayer', 'DatabaseLayer']
+            };
+          }
+        });
+        setTestDetails(mockDetails);
+        
+      } catch (err) {
+        console.error('Error fetching test flows:', err);
+        setError('Failed to load test flows. Please check if the backend services are running.');
+      } finally {
+        setLoading(false);
       }
-    ],
-    '2025-01-26': [
-      {
-        id: 'TF-001',
-        name: 'User Registration Flow',
-        status: 'passed',
-        duration: '2m 28s',
-        lastRun: '16:20',
-        steps: 12,
-        passedSteps: 12,
-        failedSteps: 0
-      },
-      {
-        id: 'TF-002',
-        name: 'Payment Processing Flow',
-        status: 'passed',
-        duration: '1m 52s',
-        lastRun: '16:15',
-        steps: 8,
-        passedSteps: 8,
-        failedSteps: 0
-      }
-    ]
-  };
+    };
 
-  const testDetails = {
-    'TF-002': {
-      failureReason: 'Payment gateway timeout',
-      errorLog: 'Connection timeout after 30 seconds\nRetry attempts: 3\nLast error: Gateway unreachable',
-      affectedComponents: ['PaymentService', 'GatewayClient', 'TransactionLogger']
-    }
-  };
+    fetchTestFlows(selectedDate);
+  }, [selectedDate]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading test flows...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="flex items-center">
+          <XCircle className="w-5 h-5 text-red-500 mr-2" />
+          <h3 className="text-red-800 font-medium">Error Loading Test Flows</h3>
+        </div>
+        <p className="text-red-700 mt-2">{error}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const currentFlows = testFlowData[selectedDate] || [];
   const summary = {

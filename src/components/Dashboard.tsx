@@ -1,47 +1,92 @@
 import React from 'react';
+import { useState, useEffect } from 'react';
 import { TrendingUp, GitMerge, TestTube, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
+import { apiService } from '../services/api';
 
 const Dashboard = () => {
-  const yesterdayStats = {
-    totalMRs: 23,
-    unitTestCoverage: 87.5,
-    passedTests: 156,
-    failedTests: 8
-  };
+  const [yesterdayStats, setYesterdayStats] = useState({
+    totalMRs: 0,
+    unitTestCoverage: 0,
+    passedTests: 0,
+    failedTests: 0
+  });
 
-  const currentStats = {
-    couplingValue: 0.73,
-    totalTestCases: 1247,
-    projectCoverage: 89.2,
-    activeMRs: 7
-  };
+  const [currentStats, setCurrentStats] = useState({
+    couplingValue: 0,
+    totalTestCases: 0,
+    projectCoverage: 0,
+    activeMRs: 0
+  });
 
-  const recentMRs = [
-    {
-      id: 'MR-001',
-      author: 'john.doe',
-      timestamp: '2025-01-27 14:30',
-      coverage: 92.1,
-      severity: 'Medium',
-      changedClasses: ['UserService', 'PaymentController', 'OrderEntity']
-    },
-    {
-      id: 'MR-002',
-      author: 'jane.smith',
-      timestamp: '2025-01-27 13:15',
-      coverage: 85.7,
-      severity: 'Low',
-      changedClasses: ['ProductRepository', 'CategoryService']
-    },
-    {
-      id: 'MR-003',
-      author: 'mike.wilson',
-      timestamp: '2025-01-27 11:45',
-      coverage: 78.3,
-      severity: 'High',
-      changedClasses: ['SecurityConfig', 'AuthenticationFilter', 'JwtUtil']
-    }
-  ];
+  const [recentMRs, setRecentMRs] = useState<Array<{
+    mrId: string;
+    author: string;
+    timestamp: string;
+    codeCoverage: number;
+    severityScore: number;
+    affectedClasses: Array<{ name: string; severity: string; reason: string }>;
+  }>>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch yesterday's stats
+        const yesterdayData = await apiService.getYesterdayStats();
+        setYesterdayStats(yesterdayData);
+
+        // Fetch current stats
+        const currentData = await apiService.getCurrentStats();
+        setCurrentStats(currentData);
+
+        // Fetch recent MRs from impact map
+        const impactData = await apiService.getImpactMap();
+        setRecentMRs(impactData.slice(0, 3)); // Show only first 3
+
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data. Please check if the backend services are running.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="flex items-center">
+          <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
+          <h3 className="text-red-800 font-medium">Error Loading Dashboard</h3>
+        </div>
+        <p className="text-red-700 mt-2">{error}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -165,39 +210,44 @@ const Dashboard = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Active MRs</p>
                 <p className="text-3xl font-bold text-gray-900">{currentStats.activeMRs}</p>
-              </div>
+                    {mr.mrId}
               <div className="bg-orange-100 p-3 rounded-full">
                 <GitMerge className="w-6 h-6 text-orange-600" />
               </div>
             </div>
           </div>
-        </div>
+                    {new Date(mr.timestamp).toLocaleString()}
       </section>
 
       {/* Recent MRs */}
-      <section>
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Recent Merge Requests</h2>
+                      mr.codeCoverage >= 90 ? 'bg-green-100 text-green-800' :
+                      mr.codeCoverage >= 80 ? 'bg-yellow-100 text-yellow-800' :
         <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+                      {mr.codeCoverage.toFixed(1)}%
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     MR ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      mr.severityScore <= 3 ? 'bg-green-100 text-green-800' :
+                      mr.severityScore <= 7 ? 'bg-yellow-100 text-yellow-800' :
                     Author
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {mr.severityScore <= 3 ? 'Low' : mr.severityScore <= 7 ? 'Medium' : 'High'}
                     Timestamp
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Coverage
+                      {mr.affectedClasses.slice(0, 3).map((affectedClass, index) => (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          {affectedClass.name}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Severity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {mr.affectedClasses.length > 3 && (
+                        <span className="inline-flex px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                          +{mr.affectedClasses.length - 3} more
+                        </span>
+                      )}
                     Changed Classes
                   </th>
                 </tr>
