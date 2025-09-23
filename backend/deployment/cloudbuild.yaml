@@ -1,0 +1,125 @@
+# Google Cloud Build configuration for ImpactAnalyzer microservices
+steps:
+  # Build MS-Index
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ms-index:$BUILD_ID', './ms_index']
+    id: 'build-ms-index'
+
+  # Build MS-MR
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ms-mr:$BUILD_ID', './ms_mr']
+    id: 'build-ms-mr'
+
+  # Build MS-Common
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ms-common:$BUILD_ID', './ms_common']
+    id: 'build-ms-common'
+
+  # Build MS-AI
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ms-ai:$BUILD_ID', './ms_ai']
+    id: 'build-ms-ai'
+
+  # Build MS-TestCase
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ms-testcase:$BUILD_ID', './ms_testcase']
+    id: 'build-ms-testcase'
+
+  # Push images to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ms-index:$BUILD_ID']
+    waitFor: ['build-ms-index']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ms-mr:$BUILD_ID']
+    waitFor: ['build-ms-mr']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ms-common:$BUILD_ID']
+    waitFor: ['build-ms-common']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ms-ai:$BUILD_ID']
+    waitFor: ['build-ms-ai']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/ms-testcase:$BUILD_ID']
+    waitFor: ['build-ms-testcase']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'ms-index',
+      '--image', 'gcr.io/$PROJECT_ID/ms-index:$BUILD_ID',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-env-vars', 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID',
+      '--memory', '1Gi',
+      '--cpu', '1',
+      '--max-instances', '10'
+    ]
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'ms-mr',
+      '--image', 'gcr.io/$PROJECT_ID/ms-mr:$BUILD_ID',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-env-vars', 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID',
+      '--memory', '1Gi',
+      '--cpu', '1',
+      '--max-instances', '10'
+    ]
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'ms-common',
+      '--image', 'gcr.io/$PROJECT_ID/ms-common:$BUILD_ID',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-env-vars', 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID',
+      '--memory', '1Gi',
+      '--cpu', '1',
+      '--max-instances', '10'
+    ]
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'ms-ai',
+      '--image', 'gcr.io/$PROJECT_ID/ms-ai:$BUILD_ID',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-env-vars', 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID',
+      '--memory', '2Gi',
+      '--cpu', '2',
+      '--max-instances', '5'
+    ]
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'ms-testcase',
+      '--image', 'gcr.io/$PROJECT_ID/ms-testcase:$BUILD_ID',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-env-vars', 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID',
+      '--memory', '2Gi',
+      '--cpu', '2',
+      '--max-instances', '3'
+    ]
+
+# Build options
+options:
+  machineType: 'E2_HIGHCPU_8'
+  substitution_option: 'ALLOW_LOOSE'
+
+# Substitutions
+substitutions:
+  _REGION: 'us-central1'
+
+# Timeout
+timeout: '1200s'

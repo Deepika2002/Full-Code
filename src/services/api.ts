@@ -1,5 +1,5 @@
 // API service for ImpactAnalyzer frontend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8003';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://ms-common-uc.a.run.app';
 const API_KEY = import.meta.env.VITE_API_KEY || 'dev-key-123';
 
 const headers = {
@@ -135,7 +135,26 @@ class ApiService {
   }
 
   // Test flows
-  async getTestFlows(date?: string) {
+  async getTestFlows(date?: string): Promise<{
+    testFlows: Array<{
+      id: string;
+      name: string;
+      status: string;
+      duration: string;
+      lastRun: string;
+      steps: number;
+      passedSteps: number;
+      failedSteps: number;
+    }>;
+    summary: {
+      total: number;
+      passed: number;
+      failed: number;
+      running: number;
+      pending: number;
+    };
+    date: string;
+  }> {
     let endpoint = '/test-flows';
     if (date) {
       endpoint += `?date=${date}`;
@@ -225,6 +244,58 @@ class ApiService {
     }>(endpoint);
     
     return response.coverage;
+  }
+
+  // Execute test flow
+  async executeTestFlow(testFlowId: string, mrId?: string, parameters?: Record<string, any>) {
+    const response = await this.request<{
+      success: boolean;
+      executionId: string;
+      status: string;
+      testFlowId: string;
+      estimatedDuration: string;
+    }>('/testcase/execute', {
+      method: 'POST',
+      body: JSON.stringify({
+        TestFlowId: testFlowId,
+        mrID: mrId,
+        parameters
+      }),
+    });
+    
+    return response;
+  }
+
+  // Get test execution status
+  async getTestExecutionStatus(executionId: string) {
+    const response = await this.request<{
+      success: boolean;
+      executionId: string;
+      status: string;
+      startTime?: string;
+      endTime?: string;
+      duration?: number;
+      errorMessage?: string;
+      gcsLogPath?: string;
+      progress?: {
+        elapsed_seconds: number;
+        estimated_remaining: number;
+      };
+    }>(`/testcase/status/${executionId}`);
+    
+    return response;
+  }
+
+  // Get test execution logs
+  async getTestExecutionLogs(executionId: string) {
+    const response = await this.request<{
+      success: boolean;
+      executionId: string;
+      logs: string;
+      gcsLogPath?: string;
+    }>(`/testcase/logs/${executionId}`);
+    
+    return response;
   }
 
   // Health check for debugging
